@@ -5,6 +5,8 @@ Network:
 - 2 fully-connected hidden layers, each with 100 activation units; final layer 10 units with cross-entropy loss
 - BN on every hidden layer
 
+Train with 100 steps (instead of 50k steps). This is enough to demonstrate the difference.
+
 References
 - https://www.tensorflow.org/guide/keras
 - https://www.tensorflow.org/api_docs/python/tf/layers/batch_normalization
@@ -12,7 +14,7 @@ References
 import numpy as np
 import tensorflow as tf
 
-BN_ON = True  # set to True to enable batch normalization
+BN_ON = False  # set to True to enable batch normalization
 
 
 def nn_model_fn(features, labels, mode, params):
@@ -101,7 +103,7 @@ def main(unused_args):
         shuffle=True
     )
 
-    for i in range(10):
+    for i in range(100):
         mnist_classifier.train(
             input_fn=train_input_fn,
             steps=1
