@@ -1,2 +1,4 @@
 .idea/
 MNIST-data/
+logs/
+tf_processing/

@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def nn_model_fn(features, labels, mode):
+def nn_model_fn(features, labels, mode, config):
     assert mode == tf.estimator.ModeKeys.TRAIN or \
            mode == tf.estimator.ModeKeys.EVAL or \
            mode == tf.estimator.ModeKeys.PREDICT
@@ -72,7 +72,7 @@ def main(unused_args):
 
     mnist_classifier = tf.estimator.Estimator(
         model_fn=nn_model_fn,
-        model_dir='/tmp/mnist_cnn'
+        model_dir='tf_processing/mnist_cnn'
     )
 
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -98,7 +98,7 @@ def main(unused_args):
 
         eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
 
-        with open('no_bn.csv', 'a') as f:
+        with open('logs/no_bn.csv', 'a') as f:
             f.write("%d,%s\n" % (i * 50, eval_results['accuracy']))
 
         print(i, eval_results)
