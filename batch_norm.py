@@ -1,18 +1,22 @@
 '''
-Reproduce mnist experiment in original batch normalization paper
+Reproduce mnist experiment in original batch normalization paper (with 2 hidden layers instead of 3)
 
 Network:
 - 2 fully-connected hidden layers, each with 100 activation units; final layer 10 units with cross-entropy loss
 - BN on every hidden layer
 
 References
-- Tensorflow keras doc https://www.tensorflow.org/guide/keras
+- https://www.tensorflow.org/guide/keras
+- https://www.tensorflow.org/api_docs/python/tf/layers/batch_normalization
 '''
 import numpy as np
 import tensorflow as tf
 
+BN_ON = True  # set to True to enable batch normalization
 
-def nn_model_fn(features, labels, mode, config):
+
+def nn_model_fn(features, labels, mode, params):
+    bn_on = params['batch_normalization']
     assert mode == tf.estimator.ModeKeys.TRAIN or \
            mode == tf.estimator.ModeKeys.EVAL or \
            mode == tf.estimator.ModeKeys.PREDICT
@@ -25,14 +29,18 @@ def nn_model_fn(features, labels, mode, config):
         activation=tf.nn.relu
     )
 
+    bn1 = tf.layers.batch_normalization(inputs=dense1, training=mode == tf.estimator.ModeKeys.TRAIN)
+
     dense2 = tf.layers.dense(
-        inputs=dense1,
+        inputs=bn1 if bn_on else dense1,
         units=100,
         activation=tf.nn.relu
     )
 
+    bn2 = tf.layers.batch_normalization(inputs=dense2, training=mode == tf.estimator.ModeKeys.TRAIN)
+
     logits = tf.layers.dense(
-        inputs=dense2,
+        inputs=bn2 if bn_on else dense2,
         units=10
     )
 
@@ -48,11 +56,20 @@ def nn_model_fn(features, labels, mode, config):
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.05)
-        train_op = optimizer.minimize(
-            loss=loss,
-            global_step=tf.train.get_global_step()
-        )
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+        if bn_on:
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                train_op = optimizer.minimize(
+                    loss=loss,
+                    global_step=tf.train.get_global_step()
+                )
+            return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+        else:
+            train_op = optimizer.minimize(
+                loss=loss,
+                global_step=tf.train.get_global_step()
+            )
+            return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
     eval_matric_ops = {
         'accuracy': tf.metrics.accuracy(
@@ -72,7 +89,8 @@ def main(unused_args):
 
     mnist_classifier = tf.estimator.Estimator(
         model_fn=nn_model_fn,
-        model_dir='tf_processing/mnist_cnn'
+        model_dir='tf_processing/mnist_bn',
+        params={'batch_normalization': BN_ON}
     )
 
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -98,8 +116,10 @@ def main(unused_args):
 
         eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
 
-        with open('logs/no_bn.csv', 'a') as f:
-            f.write("%d,%s\n" % (i * 50, eval_results['accuracy']))
+        output_fname = 'logs/bn.csv' if BN_ON else 'logs/no_bn.csv'
+
+        with open(output_fname, 'a') as f:
+            f.write("%d,%s\n" % (i, eval_results['accuracy']))
 
         print(i, eval_results)
 

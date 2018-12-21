@@ -124,7 +124,7 @@ def main(unused_args): # has to take one arg
 
     mnist_classifier = tf.estimator.Estimator(
         model_fn=cnn_model_fn, # returns EstimatorSpec
-        model_dir='/tmp/mnist_cnn' # clear or change to train from scratch
+        model_dir='tf_processing/mnist_cnn' # clear or change to train from scratch
     )
 
     tensors_to_log = {'probabilities':'softmax_tensor'}
