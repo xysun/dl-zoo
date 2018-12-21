@@ -2,17 +2,14 @@
 Reproduce mnist experiment in original batch normalization paper
 
 Network:
-- 3 fully-connected hidden layers, each with 100 activation units; final layer 10 units with cross-entropy loss
+- 2 fully-connected hidden layers, each with 100 activation units; final layer 10 units with cross-entropy loss
 - BN on every hidden layer
 
 References
-- https://r2rt.com/implementing-batch-normalization-in-tensorflow.html
 - Tensorflow keras doc https://www.tensorflow.org/guide/keras
 '''
 import numpy as np
 import tensorflow as tf
-
-# tf.logging.set_verbosity(tf.logging.INFO)
 
 
 def nn_model_fn(features, labels, mode):
@@ -41,7 +38,7 @@ def nn_model_fn(features, labels, mode):
 
     predictions = {
         'classes': tf.argmax(logits, axis=1),
-        'probabilities': tf.nn.softmax(logits, name='softmax_tensor')
+        'probabilities': tf.nn.softmax(logits)
     }
 
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -78,11 +75,6 @@ def main(unused_args):
         model_dir='/tmp/mnist_cnn'
     )
 
-    tensors_to_log = {'probabilities': 'softmax_tensor'}
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=50
-    )
-
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={'x': train_data},
         y=train_labels,
@@ -92,11 +84,9 @@ def main(unused_args):
     )
 
     for i in range(10):
-
         mnist_classifier.train(
             input_fn=train_input_fn,
-            steps=1,
-            # hooks=[logging_hook]
+            steps=1
         )
 
         eval_input_fn = tf.estimator.inputs.numpy_input_fn(
