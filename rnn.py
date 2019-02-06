@@ -1,15 +1,13 @@
 '''
 https://www.tensorflow.org/tutorials/sequences/text_generation but with Estimator API
-todo:
-- add evaluate loop
-- try use ordinary MLP
-
 '''
 
 import functools
 
 import numpy as np
 import tensorflow as tf
+
+print(tf.__version__)
 
 '''
 # run this to download data: 
@@ -44,7 +42,13 @@ def train_input_fn(text, vocab, seq_length, batch_size):
     return dataset.repeat()
 
 
-def model_fn(features, labels, mode, params):
+def gru_model_fn(features, labels, mode, params):
+    '''
+    we could have used keras model -> model.load_weights -> tf.model_to_estimator
+    but that way we lose auto Tensorboard
+    although going this way we lose variable batch_size via model.build(input_shape)
+    you'll see later in `predict` function I have to do an ugly hack to match the batch_size
+    '''
     vocab_size = params['vocab_size']
     embedding_dim = params['embedding_dim']
     batch_size = params['batch_size']
@@ -66,28 +70,63 @@ def model_fn(features, labels, mode, params):
 
     logits = model(features)
 
-    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
-    tf.summary.scalar('loss', loss)
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+        tf.summary.scalar('loss', loss)
+        optimizer = tf.train.AdamOptimizer()
+        train_op = optimizer.minimize(
+            loss=loss,
+            global_step=tf.train.get_global_step()
+        )
+        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
-    assert(mode == tf.estimator.ModeKeys.TRAIN)
-    optimizer = tf.train.AdamOptimizer()
-    train_op = optimizer.minimize(
-        loss=loss,
-        global_step=tf.train.get_global_step()
-    )
-    return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        return tf.estimator.EstimatorSpec(mode=mode, predictions={'logits': logits})
 
 
-def main(unused_args):
+def predict(estimator, vocab, num_generate, starting_word):
+    char2idx = {c: i for i, c in enumerate(vocab)}
+    idx2char = np.array(vocab)
+
+    input_eval = [char2idx[c] for c in starting_word]
+    # ugly hack: repeat BATCH_SIZE times,
+    # because we cannot change batch_size now it's part of saved model parameters (because of embedding layer)
+    input_eval_tiled = np.tile(input_eval, (BATCH_SIZE, 1))
+
+    generated = []
+
+    for i in range(num_generate):
+        prediction = next(estimator.predict(input_fn=lambda: tf.convert_to_tensor(input_eval_tiled)))  # we take first one
+        logits = prediction['logits'][-1]  # last (i.e. newly generated) character, shape(1,64)
+        # sample from multinomial distribution, we use numpy because tf.multinomial returns Tensor type
+        # first normalize probability
+        logits_exp = np.exp(logits)
+        predicted_ids = np.random.multinomial(n=100, pvals=logits_exp / logits_exp.sum())
+        predicted_id = np.argmax(predicted_ids)
+        print("Char %d, max dice %d" % (i, max(predicted_ids)))
+        generated.append(idx2char[predicted_id])
+
+        # update input_eval, I find accumulating generate slightly better results
+        input_eval.append(predicted_id)
+        # input_eval = [predicted_id]
+        input_eval_tiled = np.tile(input_eval, (BATCH_SIZE, 1))
+
+    return starting_word + ''.join(generated)
+
+
+def main(args):
+    mode = args[0]
+    assert mode in ['train', 'generate']
+
     text = open(DATA_PATH, 'rb').read().decode(encoding='utf-8')
     vocab = sorted(set(text))
 
     estimator = tf.estimator.Estimator(
-        model_fn = model_fn,
+        model_fn=gru_model_fn,
         model_dir='tf_processing/rnn',
         config=tf.estimator.RunConfig(
-            log_step_count_steps=50,
+            log_step_count_steps=10,
             save_checkpoints_steps=50
         ),
         params={
@@ -101,11 +140,16 @@ def main(unused_args):
     examples_per_batch = len(text) // SEQ_LENGTH
     steps_per_epoch = examples_per_batch // BATCH_SIZE
 
-    print("Total steps to train %d" % (steps_per_epoch * EPOCHS))
+    if mode == 'train':
+        print("Total steps to train %d" % (steps_per_epoch * EPOCHS))
 
-    estimator.train(input_fn=lambda: train_input_fn(text, vocab, SEQ_LENGTH, BATCH_SIZE),
-                    steps=steps_per_epoch * EPOCHS)
+        estimator.train(input_fn=lambda: train_input_fn(text, vocab, SEQ_LENGTH, BATCH_SIZE),
+                        steps=steps_per_epoch * EPOCHS)
+
+    elif mode == 'generate':
+        generated = predict(estimator, vocab, num_generate=30, starting_word='ROMEO')
+        print(generated)
 
 
 if __name__ == '__main__':
-    tf.app.run()
+    tf.app.run(main=main, argv=['generate'])  # use `train` or `generate`
