@@ -1,8 +1,7 @@
 '''
 https://www.tensorflow.org/tutorials/sequences/text_generation but with Estimator API
 todo:
-- plot loss in tensorboard
-- seems not restoring weights?
+- add evaluate loop
 - try use ordinary MLP
 
 '''
@@ -21,7 +20,7 @@ SEQ_LENGTH = 100
 BATCH_SIZE = 64
 EMBEDDING_DIM = 256
 RNN_UNITS = 1024
-EPOCHS = 3
+EPOCHS = 1
 
 
 def split_input_target(chunk):
@@ -42,16 +41,15 @@ def train_input_fn(text, vocab, seq_length, batch_size):
     buffer_size = 10000
     dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=True)
 
-    return dataset
+    return dataset.repeat()
 
 
-def loss(labels, logits):
-    loss = tf.keras.losses.sparse_categorical_crossentropy(labels, logits, from_logits=True)
-    tf.summary.scalar('loss', tf.reduce_mean(loss))
-    return loss
+def model_fn(features, labels, mode, params):
+    vocab_size = params['vocab_size']
+    embedding_dim = params['embedding_dim']
+    batch_size = params['batch_size']
+    rnn_units = params['rnn_units']
 
-
-def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
     rnn = functools.partial(
         tf.keras.layers.GRU, recurrent_activation='sigmoid')
     model = tf.keras.Sequential(
@@ -66,28 +64,47 @@ def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
             tf.keras.layers.Dense(vocab_size)
         ])
 
-    return model
+    logits = model(features)
+
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+
+    tf.summary.scalar('loss', loss)
+
+    assert(mode == tf.estimator.ModeKeys.TRAIN)
+    optimizer = tf.train.AdamOptimizer()
+    train_op = optimizer.minimize(
+        loss=loss,
+        global_step=tf.train.get_global_step()
+    )
+    return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
 
 
 def main(unused_args):
     text = open(DATA_PATH, 'rb').read().decode(encoding='utf-8')
     vocab = sorted(set(text))
 
-    model = build_model(len(vocab), EMBEDDING_DIM, RNN_UNITS, BATCH_SIZE)
-    model.compile(optimizer=tf.train.AdamOptimizer(),
-                  loss=loss)
-    print(model.summary())
-    estimator = tf.keras.estimator.model_to_estimator(
-        keras_model=model,
+    estimator = tf.estimator.Estimator(
+        model_fn = model_fn,
         model_dir='tf_processing/rnn',
-        config=tf.estimator.RunConfig(log_step_count_steps=1)
+        config=tf.estimator.RunConfig(
+            log_step_count_steps=50,
+            save_checkpoints_steps=50
+        ),
+        params={
+            'vocab_size': len(vocab),
+            'embedding_dim': EMBEDDING_DIM,
+            'batch_size': BATCH_SIZE,
+            'rnn_units': RNN_UNITS
+        }
     )
 
     examples_per_batch = len(text) // SEQ_LENGTH
     steps_per_epoch = examples_per_batch // BATCH_SIZE
 
+    print("Total steps to train %d" % (steps_per_epoch * EPOCHS))
+
     estimator.train(input_fn=lambda: train_input_fn(text, vocab, SEQ_LENGTH, BATCH_SIZE),
-                    steps=steps_per_epoch)
+                    steps=steps_per_epoch * EPOCHS)
 
 
 if __name__ == '__main__':
