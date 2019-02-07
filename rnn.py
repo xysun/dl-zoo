@@ -7,6 +7,8 @@ import functools
 import numpy as np
 import tensorflow as tf
 
+from scipy.special import softmax
+
 print(tf.__version__)
 
 '''
@@ -18,7 +20,7 @@ SEQ_LENGTH = 100
 BATCH_SIZE = 64
 EMBEDDING_DIM = 256
 RNN_UNITS = 1024
-EPOCHS = 1
+EPOCHS = 3
 
 
 def split_input_target(chunk):
@@ -101,8 +103,10 @@ def predict(estimator, vocab, num_generate, starting_word):
         logits = prediction['logits'][-1]  # last (i.e. newly generated) character, shape(1,64)
         # sample from multinomial distribution, we use numpy because tf.multinomial returns Tensor type
         # first normalize probability
-        logits_exp = np.exp(logits)
-        predicted_ids = np.random.multinomial(n=100, pvals=logits_exp / logits_exp.sum())
+        logits_exp = np.exp(logits - np.max(logits)).astype('float64') # better stability, also see https://github.com/numpy/numpy/issues/8317
+        pvals = np.true_divide(logits_exp, np.sum(logits_exp))
+        print(sum(pvals[:-1]))
+        predicted_ids = np.random.multinomial(n=100, pvals=pvals)
         predicted_id = np.argmax(predicted_ids)
         print("Char %d, max dice %d" % (i, max(predicted_ids)))
         generated.append(idx2char[predicted_id])
@@ -147,7 +151,7 @@ def main(args):
                         steps=steps_per_epoch * EPOCHS)
 
     elif mode == 'generate':
-        generated = predict(estimator, vocab, num_generate=30, starting_word='ROMEO')
+        generated = predict(estimator, vocab, num_generate=200, starting_word='ROMEO')
         print(generated)
 
 
