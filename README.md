@@ -1,8 +1,8 @@
 My deep learning code snippets. 
 
 Examples: 
-- [GRU that predicts Shakespeare verse](rnn.py) (replicating [this tensorflow tutorial](https://www.tensorflow.org/tutorials/sequences/text_generation) with `Estimator` APIs)
-    - Generated Shakepeare after 1000 steps of training:
+- [RNN that predicts Shakespeare verse](rnn.py) (replicating [this tensorflow tutorial](https://www.tensorflow.org/tutorials/sequences/text_generation) with `Estimator` APIs, also added LSTM as a model choice)
+    - Generated Shakepeare after 1000 steps of training on GRU:
      
         ```
         ROMEO:

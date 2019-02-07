@@ -2,12 +2,8 @@
 https://www.tensorflow.org/tutorials/sequences/text_generation but with Estimator API
 '''
 
-import functools
-
 import numpy as np
 import tensorflow as tf
-
-from scipy.special import softmax
 
 print(tf.__version__)
 
@@ -44,34 +40,66 @@ def train_input_fn(text, vocab, seq_length, batch_size):
     return dataset.repeat()
 
 
-def gru_model_fn(features, labels, mode, params):
+def build_gru_model(params):
+    vocab_size = params['vocab_size']
+    embedding_dim = params['embedding_dim']
+    batch_size = params['batch_size']
+    rnn_units = params['rnn_units']
+
+    return tf.keras.Sequential(
+        [
+            tf.keras.layers.Embedding(vocab_size, embedding_dim, batch_input_shape=[batch_size, None]),
+            tf.keras.layers.GRU(
+                rnn_units,
+                return_sequences=True,  # important
+                recurrent_initializer='glorot_uniform',
+                recurrent_activation='sigmoid',
+                stateful=True  # todo: tweak
+            ),
+            tf.keras.layers.Dense(vocab_size)
+        ])
+
+
+def build_lstm_model(params):
+    vocab_size = params['vocab_size']
+    embedding_dim = params['embedding_dim']
+    batch_size = params['batch_size']
+    rnn_units = params['rnn_units']
+
+    return tf.keras.Sequential(
+        [
+            tf.keras.layers.Embedding(vocab_size, embedding_dim, batch_input_shape=[batch_size, None]),
+            tf.keras.layers.LSTM(
+                rnn_units,
+                return_sequences=True,  # important
+                recurrent_initializer='glorot_uniform',
+                recurrent_activation='sigmoid',
+                stateful=True  # todo: tweak
+            ),
+            tf.keras.layers.Dense(vocab_size)
+        ])
+
+
+def model_fn(features, labels, mode, params):
     '''
     we could have used keras model -> model.load_weights -> tf.model_to_estimator
     but that way we lose auto Tensorboard
     although going this way we lose variable batch_size via model.build(input_shape)
     you'll see later in `predict` function I have to do an ugly hack to match the batch_size
     '''
-    vocab_size = params['vocab_size']
-    embedding_dim = params['embedding_dim']
-    batch_size = params['batch_size']
-    rnn_units = params['rnn_units']
 
-    rnn = functools.partial(
-        tf.keras.layers.GRU, recurrent_activation='sigmoid')
-    model = tf.keras.Sequential(
-        [
-            tf.keras.layers.Embedding(vocab_size, embedding_dim, batch_input_shape=[batch_size, None]),
-            rnn(
-                rnn_units,
-                return_sequences=True,  # important
-                recurrent_initializer='glorot_uniform',
-                stateful=True  # todo: tweak
-            ),
-            tf.keras.layers.Dense(vocab_size)
-        ])
+    model_name = params['model_name']
+
+    assert model_name in ['lstm', 'gru']
+
+    if model_name == 'gru':
+        model = build_gru_model(params)
+    elif model_name == 'lstm':
+        model = build_lstm_model(params)
+
+    print(model.summary())
 
     logits = model(features)
-
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
@@ -99,11 +127,13 @@ def predict(estimator, vocab, num_generate, starting_word):
     generated = []
 
     for i in range(num_generate):
-        prediction = next(estimator.predict(input_fn=lambda: tf.convert_to_tensor(input_eval_tiled)))  # we take first one
+        prediction = next(
+            estimator.predict(input_fn=lambda: tf.convert_to_tensor(input_eval_tiled)))  # we take first one
         logits = prediction['logits'][-1]  # last (i.e. newly generated) character, shape(1,64)
         # sample from multinomial distribution, we use numpy because tf.multinomial returns Tensor type
         # first normalize probability
-        logits_exp = np.exp(logits - np.max(logits)).astype('float64') # better stability, also see https://github.com/numpy/numpy/issues/8317
+        logits_exp = np.exp(logits - np.max(logits)).astype(
+            'float64')  # better stability, also see https://github.com/numpy/numpy/issues/8317
         pvals = np.true_divide(logits_exp, np.sum(logits_exp))
         print(sum(pvals[:-1]))
         predicted_ids = np.random.multinomial(n=100, pvals=pvals)
@@ -121,14 +151,15 @@ def predict(estimator, vocab, num_generate, starting_word):
 
 def main(args):
     mode = args[0]
+    model_name = args[1]
     assert mode in ['train', 'generate']
 
     text = open(DATA_PATH, 'rb').read().decode(encoding='utf-8')
     vocab = sorted(set(text))
 
     estimator = tf.estimator.Estimator(
-        model_fn=gru_model_fn,
-        model_dir='tf_processing/rnn',
+        model_fn=model_fn,
+        model_dir='tf_processing/' + model_name,
         config=tf.estimator.RunConfig(
             log_step_count_steps=10,
             save_checkpoints_steps=50
@@ -137,7 +168,8 @@ def main(args):
             'vocab_size': len(vocab),
             'embedding_dim': EMBEDDING_DIM,
             'batch_size': BATCH_SIZE,
-            'rnn_units': RNN_UNITS
+            'rnn_units': RNN_UNITS,
+            'model_name': model_name
         }
     )
 
@@ -156,4 +188,9 @@ def main(args):
 
 
 if __name__ == '__main__':
-    tf.app.run(main=main, argv=['generate'])  # use `train` or `generate`
+    '''
+    possible args: [`mode`, `model_name`] where:
+    mode is either 'train' or 'generate'
+    model_name is either 'gru' or 'lstm'
+    '''
+    tf.app.run(main=main, argv=['train', 'lstm'])
