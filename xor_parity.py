@@ -23,9 +23,6 @@ def generate_train_data(count, max_length, warmup):
     '''
     Generate a list containing `count` of random bit strings
 
-    if `randomize_length` is True, each string has length uniformly drawn from [1, `length`]
-    else each string is of length `length`
-
     warmup: generate `warmup` number of 2 bits first
 
     :return: list of 0,1; sorted by length
