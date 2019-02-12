@@ -1,6 +1,9 @@
 My deep learning code snippets. 
 
 Examples: 
+- [My solution to XOR parity challenge](xor_parity.py)
+    - This is the "warmup" from [OpenAI request for research v2](https://blog.openai.com/requests-for-research-2/)
+    - ![img](images/parity-accuracy.png)
 - [RNN that predicts Shakespeare verse](rnn.py) (replicating [this tensorflow tutorial](https://www.tensorflow.org/tutorials/sequences/text_generation) with `Estimator` APIs, also added LSTM as a model choice)
     - Generated Shakepeare after 1000 steps of training on GRU:
      
