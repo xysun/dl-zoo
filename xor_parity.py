@@ -13,7 +13,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 print(tf.__version__)
 
 BATCH_SIZE = 8
-RNN_UNITS = 24
+RNN_UNITS = 20
 WARMUP = 10000
 BITS_MAX_LENGTH = 50
 DATASET_SIZE = 100000
