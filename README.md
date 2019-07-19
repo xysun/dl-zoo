@@ -1,6 +1,12 @@
 My deep learning code snippets. 
 
 Examples: 
+- Incremental Network Quantization
+   - Code can be found in densenet/inq/.
+   - I'm able to achieve 79% test accuracy on CIFAR100 after quantization with the training setup in `densenet/quantize.py`.
+- [DenseNet](densenet/densenet.py) and [MobileNetV2](densenet/mobilenetv2.py)
+    - Use [train.py](densenet/train.py) to train either networks.
+    - I'm able to achieve 80.22% test accuracy on CIFAR100 with densenet with the training setup in `train.py`.
 - [My solution to XOR parity challenge](xor_parity.py)
     - This is the "warmup" from [OpenAI request for research v2](https://blog.openai.com/requests-for-research-2/)
     
