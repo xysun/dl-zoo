@@ -22,5 +22,5 @@ Examples:
         What says the seast that we say 'tis a thing and like to see him for the people,
         Which was the seas of t
         ```
-- Demonstrate accelerated learning from batch normalization on mnist: see `batch_norm.py`
+- Demonstrate accelerated learning from batch normalization on mnist: see [`batch_norm.py`](https://github.com/xysun/dl-zoo/blob/master/batch_norm.py)
     - ![img](images/bn.png)
