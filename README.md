@@ -1,8 +1,7 @@
 My deep learning code snippets. 
 
 Examples: 
-- Incremental Network Quantization
-   - Code can be found in densenet/inq/.
+- [Incremental Network Quantization](https://github.com/xysun/dl-zoo/tree/master/densenet/inq)
    - I'm able to achieve 79% test accuracy on CIFAR100 after quantization with the training setup in `densenet/quantize.py`.
 - [DenseNet](densenet/densenet.py) and [MobileNetV2](densenet/mobilenetv2.py)
     - Use [train.py](densenet/train.py) to train either networks.
